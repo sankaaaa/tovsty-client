@@ -1,33 +1,36 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import { Modal, Button } from 'react-bootstrap';
 
 function App() {
     const [books, setBooks] = useState([]);
     const [newBook, setNewBook] = useState({ title: '', authour: '', genre: '', year: '' });
-    const [editingBook, setEditingBook] = useState(null); // Для редагування
-    const [isAdmin, setIsAdmin] = useState(false); // Чи є користувач адміністратором
-    const [user, setUser] = useState(null); // Збереження інформації про користувача
-    const [loginData, setLoginData] = useState({ username: '', password: '' }); // Для форми логіну
-    const [errorMessage, setErrorMessage] = useState(''); // Повідомлення про помилки
+    const [editingBook, setEditingBook] = useState(null); // For editing
+    const [isAdmin, setIsAdmin] = useState(false); // Check if user is admin
+    const [user, setUser] = useState(null); // User info
+    const [loginData, setLoginData] = useState({ username: '', password: '' }); // Login form data
+    const [errorMessage, setErrorMessage] = useState(''); // Error message
+    const [showModal, setShowModal] = useState(false); // State for modal visibility
+    const [showLoginModal, setShowLoginModal] = useState(false); // State for login modal
 
-    // Перевірка на адміністратора після логіну
+    // Check if user is an admin after login
     useEffect(() => {
-        const storedUser = JSON.parse(localStorage.getItem('user')); // Перевіряємо, чи є користувач в локальному сховищі
+        const storedUser = JSON.parse(localStorage.getItem('user'));
         if (storedUser && storedUser.role === 'admin') {
             setIsAdmin(true);
             setUser(storedUser);
         }
     }, []);
 
-    // Завантаження списку книжок
+    // Fetch books list
     useEffect(() => {
         axios.get('/books')
             .then(response => setBooks(response.data))
             .catch(error => console.error('Error fetching books:', error));
     }, []);
 
-    // Форма логіну
+    // Handle login form change
     const handleLoginChange = (event) => {
         const { name, value } = event.target;
         setLoginData(prevData => ({
@@ -36,45 +39,54 @@ function App() {
         }));
     };
 
-    // Логін користувача
+    // Handle login submission
     const handleLogin = (event) => {
         event.preventDefault();
-        // Приклад перевірки: правильні логін/пароль
         if (loginData.username === 'admin' && loginData.password === 'password') {
             const loggedInUser = { username: 'admin', role: 'admin' };
             localStorage.setItem('user', JSON.stringify(loggedInUser));
             setIsAdmin(true);
             setUser(loggedInUser);
-            setErrorMessage(''); // Очистити помилку
+            setErrorMessage('');
+            setShowLoginModal(false); // Close login modal
         } else {
-            setErrorMessage('Невірний логін або пароль');
+            setErrorMessage('Invalid username or password');
         }
     };
 
-    // Додавання нової книжки
+    // Handle logout
+    const handleLogout = () => {
+        localStorage.removeItem('user');
+        setIsAdmin(false);
+        setUser(null);
+    };
+
+    // Add new book
     const handleAddBook = (event) => {
         event.preventDefault();
         axios.post('/books', newBook)
             .then(response => {
                 setBooks(prevBooks => [...prevBooks, response.data]);
                 setNewBook({ title: '', authour: '', genre: '', year: '' });
+                setShowModal(false); // Close modal
             })
             .catch(error => console.error('Error adding book:', error));
     };
 
-    // Видалення книжки
+    // Delete a book
     const handleDeleteBook = (id) => {
         axios.delete(`/books/${id}`)
             .then(() => {
-                setBooks(books.filter(book => book.id !== id)); // Видаляємо книгу з локального списку
+                setBooks(books.filter(book => book.id !== id));
             })
             .catch(error => console.error('Error deleting book:', error));
     };
 
-    // Редагування книжки
+    // Edit a book
     const handleEditBook = (book) => {
         setEditingBook(book);
         setNewBook({ title: book.title, authour: book.authour, genre: book.genre, year: book.year });
+        setShowModal(true); // Open modal
     };
 
     const handleUpdateBook = (event) => {
@@ -83,12 +95,13 @@ function App() {
             .then(response => {
                 setBooks(books.map(book => (book.id === editingBook.id ? response.data : book)));
                 setNewBook({ title: '', authour: '', genre: '', year: '' });
-                setEditingBook(null); // Завершити редагування
+                setEditingBook(null);
+                setShowModal(false); // Close modal
             })
             .catch(error => console.error('Error updating book:', error));
     };
 
-    // Оновлення полів форми
+    // Handle form input change
     const handleChange = (event) => {
         const { name, value } = event.target;
         setNewBook(prevBook => ({
@@ -97,108 +110,64 @@ function App() {
         }));
     };
 
-    // Логіка для показу або приховування інтерфейсу
+    // Render login form
     const renderLoginForm = () => {
         return (
-            <div className="container mt-5">
-                <h2>Вхід</h2>
-                <form onSubmit={handleLogin}>
-                    <div className="mb-3">
-                        <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Логін"
-                            name="username"
-                            value={loginData.username}
-                            onChange={handleLoginChange}
-                            required
-                        />
-                    </div>
-                    <div className="mb-3">
-                        <input
-                            type="password"
-                            className="form-control"
-                            placeholder="Пароль"
-                            name="password"
-                            value={loginData.password}
-                            onChange={handleLoginChange}
-                            required
-                        />
-                    </div>
-                    {errorMessage && <div className="alert alert-danger">{errorMessage}</div>}
-                    <button type="submit" className="btn btn-primary">Увійти</button>
-                </form>
-            </div>
+            <Modal show={showLoginModal} onHide={() => setShowLoginModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Login</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <form onSubmit={handleLogin}>
+                        <div className="mb-3">
+                            <input
+                                type="text"
+                                className="form-control"
+                                placeholder="Username"
+                                name="username"
+                                value={loginData.username}
+                                onChange={handleLoginChange}
+                                required
+                            />
+                        </div>
+                        <div className="mb-3">
+                            <input
+                                type="password"
+                                className="form-control"
+                                placeholder="Password"
+                                name="password"
+                                value={loginData.password}
+                                onChange={handleLoginChange}
+                                required
+                            />
+                        </div>
+                        {errorMessage && <div className="alert alert-danger">{errorMessage}</div>}
+                        <Button type="submit" variant="primary">Login</Button>
+                    </form>
+                </Modal.Body>
+            </Modal>
         );
     };
 
+    // Render books page
     const renderBooksPage = () => {
         return (
             <div className="container mt-5">
-                <h1 className="mb-4">Список книжок</h1>
+                <h1 className="mb-4">Book List</h1>
 
-                {/* Форма для додавання/редагування книжки */}
+                {/* Add Book Button */}
                 {isAdmin && (
                     <div className="mb-4">
-                        <h2>{editingBook ? 'Редагувати книжку' : 'Додати нову книжку'}</h2>
-                        <form onSubmit={editingBook ? handleUpdateBook : handleAddBook}>
-                            <div className="mb-3">
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    placeholder="Назва"
-                                    name="title"
-                                    value={newBook.title}
-                                    onChange={handleChange}
-                                    required
-                                />
-                            </div>
-                            <div className="mb-3">
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    placeholder="Автор"
-                                    name="authour"
-                                    value={newBook.authour}
-                                    onChange={handleChange}
-                                    required
-                                />
-                            </div>
-                            <div className="mb-3">
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    placeholder="Жанр"
-                                    name="genre"
-                                    value={newBook.genre}
-                                    onChange={handleChange}
-                                    required
-                                />
-                            </div>
-                            <div className="mb-3">
-                                <input
-                                    type="number"
-                                    className="form-control"
-                                    placeholder="Рік видання"
-                                    name="year"
-                                    value={newBook.year}
-                                    onChange={handleChange}
-                                    required
-                                />
-                            </div>
-                            <button type="submit" className="btn btn-primary">
-                                {editingBook ? 'Оновити' : 'Додати'}
-                            </button>
-                        </form>
+                        <Button variant="primary" onClick={() => { setShowModal(true); setEditingBook(null); }}>Add Book</Button>
                     </div>
                 )}
 
-                {/* Список книжок */}
+                {/* Books List */}
                 <div className="row">
                     {books.length === 0 ? (
                         <div className="col-12">
                             <div className="alert alert-warning" role="alert">
-                                Немає книжок для відображення.
+                                No books available.
                             </div>
                         </div>
                     ) : (
@@ -208,17 +177,17 @@ function App() {
                                     <div className="card-body">
                                         <h5 className="card-title">{book.title}</h5>
                                         <h6 className="card-subtitle mb-2 text-muted">{book.authour}</h6>
-                                        <p className="card-text"><strong>Жанр:</strong> {book.genre}</p>
-                                        <p className="card-text"><strong>Рік видання:</strong> {book.year}</p>
+                                        <p className="card-text"><strong>Genre:</strong> {book.genre}</p>
+                                        <p className="card-text"><strong>Year:</strong> {book.year}</p>
 
-                                        {/* Кнопки для адміністратора */}
+                                        {/* Admin actions */}
                                         {isAdmin && (
                                             <div>
                                                 <button onClick={() => handleEditBook(book)} className="btn btn-warning me-2">
-                                                    Редагувати
+                                                    Edit
                                                 </button>
                                                 <button onClick={() => handleDeleteBook(book.id)} className="btn btn-danger">
-                                                    Видалити
+                                                    Delete
                                                 </button>
                                             </div>
                                         )}
@@ -228,13 +197,102 @@ function App() {
                         ))
                     )}
                 </div>
+
+                {/* Logout Button */}
+                {isAdmin && (
+                    <Button variant="secondary" onClick={handleLogout}>Logout</Button>
+                )}
             </div>
         );
     };
 
     return (
         <div>
-            {!user ? renderLoginForm() : renderBooksPage()}
+            {!user ? (
+                <>
+
+                    {renderLoginForm()}
+                    <div className="container mt-5">
+                        <h4>Guest Book List</h4>
+                        <div className="row">
+                            {books.map(book => (
+                                <div className="col-md-4 mb-4" key={book.id}>
+                                    <div className="card h-100">
+                                        <div className="card-body">
+                                            <h5 className="card-title">{book.title}</h5>
+                                            <h6 className="card-subtitle mb-2 text-muted">{book.authour}</h6>
+                                            <p className="card-text"><strong>Genre:</strong> {book.genre}</p>
+                                            <p className="card-text"><strong>Year:</strong> {book.year}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <Button variant="primary" onClick={() => setShowLoginModal(true)}>
+                            Login
+                        </Button>
+                    </div>
+
+                </>
+            ) : renderBooksPage()}
+
+            {/* Modal for adding/editing books */}
+            <Modal show={showModal} onHide={() => setShowModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>{editingBook ? 'Edit Book' : 'Add Book'}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <form onSubmit={editingBook ? handleUpdateBook : handleAddBook}>
+                        <div className="mb-3">
+                            <input
+                                type="text"
+                                className="form-control"
+                                placeholder="Title"
+                                name="title"
+                                value={newBook.title}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+                        <div className="mb-3">
+                            <input
+                                type="text"
+                                className="form-control"
+                                placeholder="Author"
+                                name="authour"
+                                value={newBook.authour}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+                        <div className="mb-3">
+                            <input
+                                type="text"
+                                className="form-control"
+                                placeholder="Genre"
+                                name="genre"
+                                value={newBook.genre}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+                        <div className="mb-3">
+                            <input
+                                type="number"
+                                className="form-control"
+                                placeholder="Year"
+                                name="year"
+                                value={newBook.year}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+                        <Button type="submit" variant="primary">
+                            {editingBook ? 'Update' : 'Add'}
+                        </Button>
+                    </form>
+                </Modal.Body>
+            </Modal>
         </div>
     );
 }
